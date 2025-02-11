@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения (указывайте название вашего каталога виртуального окружения, например, venv)
+venv/
+ENV/
+env/
+
+# Распакованные дистрибутивы, сборки и пакеты
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Файлы, создаваемые PyInstaller
+*.spec
+
+# Отчёты о покрытии тестами и кэш
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.mypy_cache/
+
+# Логи
+*.log
+
+# Файлы IDE и редакторов
+.vscode/
+.idea/
+*.iml
+
+# Операционные системы
+.DS_Store
+Thumbs.db
+
+.env
