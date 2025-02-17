@@ -20,6 +20,14 @@ class UserRead(UserBase):
     class Config:
         orm_mode = True  # Позволяет работать с объектами SQLAlchemy
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, example="new_username")
+    email: Optional[EmailStr] = Field(None, example="new_email@example.com")
+    role: Optional[str] = Field(None, example="admin")
+
+    class Config:
+        orm_mode = True
+
 # -----------------------
 # Схемы для авторов
 # -----------------------
