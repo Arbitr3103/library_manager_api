@@ -19,13 +19,21 @@ def create_book(
 @router.get("/{book_id}", response_model=schemas.BookRead)
 def read_book(book_id: int, db: Session = Depends(get_db)):
     db_book = crud.get_book(db=db, book_id=book_id)
-    if db_book is None:
+    if not db_book:
         raise HTTPException(status_code=404, detail="Book not found")
     return db_book
 
 @router.get("/", response_model=List[schemas.BookRead])
-def read_books(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    books = crud.get_books(db=db, skip=skip, limit=limit)
+def read_books(
+    skip: int = 0,
+    limit: int = 100,
+    title: Optional[str] = None,  # параметр для фильтрации по заголовку
+    db: Session = Depends(get_db)
+):
+    if title:
+        books = crud.get_books_by_title(db, title=title, skip=skip, limit=limit)
+    else:
+        books = crud.get_books(db=db, skip=skip, limit=limit)
     return books
 
 @router.delete("/{book_id}", response_model=schemas.BookRead)

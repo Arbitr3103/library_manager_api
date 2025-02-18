@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.utils import hash_password  # Функция хэширования пароля
 from datetime import datetime, timezone
+from app.logger import logger
 
 # -----------------------------
 # CRUD операции для пользователей
@@ -115,26 +116,11 @@ def create_book(db: Session, book: schemas.BookCreate):
 def get_book(db: Session, book_id: int):
     return db.query(models.Book).filter(models.Book.id == book_id).first()
 
-
-def get_books(db: Session, skip: int = 0, limit: int = 10):
-    return db.query(models.Book).offset(skip).limit(limit).all()
-
-def return_book(db: Session, issue_id: int):
-    # Находим запись выдачи книги по её ID
-    db_issue = db.query(models.Issue).filter(models.Issue.id == issue_id).first()
-    if not db_issue or db_issue.returned_date is not None:
-        # Либо выдача не найдена, либо книга уже возвращена
-        return None
-    # Фиксируем дату возврата с привязанной временной зоной
-    db_issue.returned_date = datetime.now(timezone.utc)
-    # Увеличиваем количество доступных экземпляров книги
-    book = db.query(models.Book).filter(models.Book.id == db_issue.book_id).first()
-    if book:
-        book.available_copies += 1
-    db.commit()
-    db.refresh(db_issue)
-    return db_issue
-
+def get_books(db: Session, skip: int = 0, limit: int = 10, title: str | None = None):
+    query = db.query(models.Book)
+    if title:
+        query = query.filter(models.Book.title.ilike(f"%{title}%"))
+    return query.offset(skip).limit(limit).all()
 
 def delete_book(db: Session, book_id: int):
     db_book = get_book(db, book_id)
@@ -168,26 +154,24 @@ def get_genres(db: Session, skip: int = 0, limit: int = 10):
 # CRUD операции для выдачи книги (Issues)
 # -----------------------------
 def create_issue(db: Session, issue: schemas.IssueCreate):
-    # Проверяем, сколько книг уже выданы данному пользователю (не возвращено)
     current_issues_count = (
         db.query(models.Issue)
         .filter(models.Issue.user_id == issue.user_id, models.Issue.returned_date.is_(None))
         .count()
     )
     if current_issues_count >= 5:
+        logger.info(f"User {issue.user_id} exceeded issue limit.")
         raise Exception("User already has 5 issued books.")
 
-    # Проверяем, существует ли книга и доступны ли экземпляры
     book = db.query(models.Book).filter(models.Book.id == issue.book_id).first()
     if not book:
+        logger.info(f"Book {issue.book_id} not found.")
         raise Exception("Book not found.")
     if book.available_copies < 1:
+        logger.info(f"No available copies for book {issue.book_id}.")
         raise Exception("No available copies for this book.")
 
-    # Уменьшаем количество доступных экземпляров книги
     book.available_copies -= 1
-
-    # Создаем запись о выдаче книги
     db_issue = models.Issue(
         book_id=issue.book_id,
         user_id=issue.user_id,
@@ -196,6 +180,7 @@ def create_issue(db: Session, issue: schemas.IssueCreate):
     db.add(db_issue)
     db.commit()
     db.refresh(db_issue)
+    logger.info(f"Issue created: User {issue.user_id} issued book {issue.book_id}.")
     return db_issue
 
 
@@ -205,4 +190,24 @@ def get_issue(db: Session, issue_id: int):
 
 def get_issues(db: Session, skip: int = 0, limit: int = 10):
     return db.query(models.Issue).offset(skip).limit(limit).all()
+
+
+def return_book(db: Session, issue_id: int):
+    # Используем функцию get_issue для получения записи выдачи
+    db_issue = get_issue(db, issue_id)
+    if not db_issue or db_issue.returned_date is not None:
+        logger.info(f"Issue {issue_id} not found or already returned.")
+        return None
+    # Фиксируем дату возврата с учетом часового пояса
+    db_issue.returned_date = datetime.now(timezone.utc)
+
+    # Увеличиваем количество доступных экземпляров книги
+    book = db.query(models.Book).filter(models.Book.id == db_issue.book_id).first()
+    if book:
+        book.available_copies += 1
+    db.commit()
+    db.refresh(db_issue)
+    logger.info(f"Book {db_issue.book_id} returned by user {db_issue.user_id}.")
+    return db_issue
+
 
